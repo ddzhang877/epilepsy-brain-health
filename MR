@@ -1,0 +1,42 @@
+library(TwoSampleMR)
+ep<-as.data.frame(fread('finngen_R8_G6_EPLEPSY.gz'))
+a<-subset(ep,P<5e-08)
+colnames(a)[1]<-'chrom'
+fwrite(a,"epilepsy_sig.csv")
+ep<-system.file('epilepsy_sig.csv',package = "TwoSampleMR")
+
+epilepsy.exposure_data<-read_exposure_data(
+    filename = "epilepsy_sig.csv",
+    sep = ",",
+    se_col = "FreqSE", 
+    beta_col = "beta", 
+    snp_col = "MarkerName",        
+    effect_allele_col = "Allele1", 
+    other_allele_col = "Allele2", 
+    pval_col = "P",clump = TRUE
+  )
+epilepsy.exposure_data_clumped<-clump_data(epilepsy.exposure_data,clump_r2 = 0.1, clump_kb=500)
+write.csv(epilepsy.exposure_data,"epilepsy.exposure_data.csv",row.names = F)
+write.csv(epilepsy.exposure_data_clumped,"epilepsy.exposure_data_clumped.csv",row.names = F)   
+
+st1<-as.data.frame(fread('/mnt/storage/home1/Huashan1/gyj_data/Resources/GWAS/Neurology/Stroke/Malik2018/MEGASTROKE.1.AS.EUR.out'))
+merge<-merge(epilepsy.exposure_data,st1,by.x = 'SNP',by.y = "rsids")
+fwrite(merge,"outcome_st1.csv")
+
+st1_data<-read_outcome_data(snps = epilepsy.exposure_data$SNP, 
+                                            filename = "outcome_st1.csv",
+                                            sep = ",",
+                                            snp_col = "SNP",
+                                            effect_allele_col = "ref", 
+                                            other_allele_col = "alt",
+                                            pval_col = "pval",
+                                            beta_col = "beta", 
+                                            se_col = "sebeta"     
+  )
+
+########harmonise#############
+epilepsy_st1_dat <- harmonise_data(exposure_dat=epilepsy.exposure_data, outcome_dat=st1_data)  
+#the effect of a SNP on the exposure and the effect of that SNP on the outcome must each correspond to the same allele 
+epilepsy_st1_results <- mr(epilepsy_st1_dat)
+epilepsy_st1_results_withOR <- generate_odds_ratios(epilepsy_st1_results)
+fwrite(epilepsy_st1_results_withOR,"MRoutcome_stroke1.csv")
