@@ -14,6 +14,9 @@ ggsurvplot(f,pval=TRUE,pval.coord=c(0.1,0.1),risk.table = TRUE, fun = "event",co
 fit <- lm(scale(Outcome)~factor(epilepsy_status)+age+factor(sex)+factor(ethn)+factor(Qaulification)+bmi+Socioeconomic+factor(Smoking_status)+factor(Alcohol_consumption),data=data1)
 summary(fit)
 
+fit <- lm(scale(marker)~factor(epilepsy_status)+age+factor(sex)+factor(ethn)+factor(Qaulification)+bmi+Socioeconomic+factor(Smoking_status)+factor(Alcohol_consumption),data=data1)
+summary(fit)
+
 #COX#
 fit <- coxph(Surv(Outcome_years,factor(Outcome_status)==1)~factor(epilepsy_status)+age+factor(sex)+factor(ethn)+factor(Qaulification),data=data)
 summary(fit)
@@ -21,3 +24,10 @@ summary(fit)
 fit <- coxph(Surv(stroke_years,factor(stroke_status)==1)~factor(epilepsy_status)+age+factor(sex)+factor(ethn)+dbp+sbp,data=data)
 summary(fit)
 
+fit <- coxph(Surv(Outcome_years,factor(Outcome_status)==1)~scale(marker)+age+factor(sex)+factor(ethn)+factor(Qaulification),data=data)
+summary(fit)
+
+fit <- coxph(Surv(stroke_years,factor(stroke_status)==1)~scale(marker)+age+factor(sex)+factor(ethn)+dbp+sbp,data=data)
+summary(fit)
+
+#mediation analysis#
