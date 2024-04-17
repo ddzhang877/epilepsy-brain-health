@@ -1,0 +1,63 @@
+#linear regression analysis#
+fit <- lm(Outcome~Exposure+cov1+cov2+cov3+cov4+cov5+cov6+cov7+cov8,data=mydata)
+summary(fit)
+
+#Calculation of the rate of change in brain function#
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(data.table)
+Scales <- c('colname1','colname2','colname3','colname4')
+Brain_function_change_by <- list()
+Brain_function <- list()
+Brain_function_change <- unique(mydata1$eid)
+Brain_function_change <- data.frame(Brain_function_change)
+names(Brain_function_change) <- "eid"
+for (i in Scales){
+  mydata <- f_c[,c('eid',i,'years')]
+  mydata <- mydata %>% filter(!(is.na(mydata[[i]])))
+  FML <- as.formula(paste0(i,"~","years"))
+  Brain_function_change_by[[i]] <- by(mydata,as.factor(mydata$eid),
+                                 function(x) lm(FML,data = x))
+  Brain_function[[i]]<- sapply(Brain_function_change_by[[i]],coef)[2,]
+  Brain_function[[i]]<- data.frame(Brain_function[[i]])
+  names(Brain_function[[i]]) <- paste0(i,"_change")
+  Brain_function[[i]]<- transform(Brain_function[[i]],eid = as.integer(row.names(Brain_function[[i]])))
+  Brain_function_change <- merge(Brain_function_change,Brain_function[[i]],by.x = "eid",all = T)
+}
+
+#KM#
+library(ggplot2)
+library(survival)
+library(survminer)
+f<-survfit(Surv(Outcome_years,Outcome_status)~Exposure,data=mydata)
+ggsurvplot(f,pval=TRUE,pval.coord=c(0.1,0.1),risk.table = TRUE, fun = "event",conf.int = TRUE,conf.int.style="ribbon" ,conf.int.alpha=0.3,
+           surv.plot.height= 0.7, main = "Survival curve",legend.title = "Epilepsy",legend.labs = c("No", "Yes"),
+           legend=c(0.8,1), xlab="Follow-up Duratin (Year)", ylab="Cumulative Event Rate (%)", xlim = c(0,17), ylim = c(0,0.1), 
+           tables.height = 0.2, tables.theme = theme_cleantable(), font.main = c(14, "bold", "darkblue"),
+           font.x = c(14, "plain", "black"), break.x.by = 2, break.y.by = 0.02, font.y = c(14, "plain", "black"), 
+           font.tickslab = c(12, "plain", "black"), risk.table.col="strata", risk.table.height=0.2, palette = "npg")
+
+#COX analysis#
+fit <- coxph(Surv(Outcome_years,Outcome_status==1)~Exposure+cov1+cov2+cov3+cov4,data=mydata)
+summary(fit)
+
+
+#mediation analysis#
+library("survival")
+library("mediation")
+fit.dv<-glm(Outcome_status~Marker+epilepsy_status+age+sex+ethn+Qaulification,family=binomial(link=logit),media_peri_dis)
+M2<-coef(summary(fit.dv))[2,]
+fit.mediator<-lm(Marker~epilepsy_status+age+sex+ethn+Qaulification,media_peri_dis)
+M1<-coef(summary(fit.mediator))[2,]
+results<-mediate(fit.mediator,fit.dv,treat="epilepsy_status",mediator="Marker",sims=1000)
+SUM<-summary(results)
+ACME<-c(SUM$d.avg,SUM$d.avg.ci,SUM$d.avg.p) 
+ADE<-c(SUM$z.avg,SUM$z.avg.ci,SUM$z.avg.p)
+Prop<-c(SUM$n.avg,SUM$n.avg.ci,SUM$n.avg.p)
+Total<-c(SUM$tau.coef,SUM$tau.ci,SUM$tau.p)
+res<-rbind(ACME,ADE,Prop,Total)
+res
+results<-rbind(M1,M2,res)
+colnames(results)<-c("Estimate","SE/95L","Z/95U","P")
+write.csv(results,"Marker_Outcome.csv",row.names=T,quote=F)
