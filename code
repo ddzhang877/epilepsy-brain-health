@@ -2,7 +2,7 @@
 library(ggplot2)
 library(survival)
 library(survminer)
-f<-survfit(Surv(dementia_years,dementia_status)~epilepsy_status,data=total)
+f<-survfit(Surv(Outcome_years,Outcome_status)~Exposure,data=mydata)
 ggsurvplot(f,pval=TRUE,pval.coord=c(0.1,0.1),risk.table = TRUE, fun = "event",conf.int = TRUE,conf.int.style="ribbon" ,conf.int.alpha=0.3,
            surv.plot.height= 0.7, main = "Survival curve",legend.title = "Epilepsy",legend.labs = c("No", "Yes"),
            legend=c(0.8,1), xlab="Follow-up Duratin (Year)", ylab="Cumulative Event Rate (%)", xlim = c(0,17), ylim = c(0,0.1), 
@@ -11,23 +11,40 @@ ggsurvplot(f,pval=TRUE,pval.coord=c(0.1,0.1),risk.table = TRUE, fun = "event",co
            font.tickslab = c(12, "plain", "black"), risk.table.col="strata", risk.table.height=0.2, palette = "npg")
 
 #linear regression#
-fit <- lm(scale(Outcome)~factor(epilepsy_status)+age+factor(sex)+factor(ethn)+factor(Qaulification)+bmi+Socioeconomic+factor(Smoking_status)+factor(Alcohol_consumption),data=data1)
-summary(fit)
-
-fit <- lm(scale(marker)~factor(epilepsy_status)+age+factor(sex)+factor(ethn)+factor(Qaulification)+bmi+Socioeconomic+factor(Smoking_status)+factor(Alcohol_consumption),data=data1)
+fit <- lm(Outcome~Exposure+cov1+cov2+cov3+cov4+cov5+cov6+cov7+cov8,data=mydata)
 summary(fit)
 
 #COX#
-fit <- coxph(Surv(Outcome_years,factor(Outcome_status)==1)~factor(epilepsy_status)+age+factor(sex)+factor(ethn)+factor(Qaulification),data=data)
+fit <- coxph(Surv(Outcome_years,Outcome_status==1)~Exposure+cov1+cov2+cov3+cov4,data=mydata)
 summary(fit)
 
-fit <- coxph(Surv(stroke_years,factor(stroke_status)==1)~factor(epilepsy_status)+age+factor(sex)+factor(ethn)+dbp+sbp,data=data)
-summary(fit)
-
-fit <- coxph(Surv(Outcome_years,factor(Outcome_status)==1)~scale(marker)+age+factor(sex)+factor(ethn)+factor(Qaulification),data=data)
-summary(fit)
-
-fit <- coxph(Surv(stroke_years,factor(stroke_status)==1)~scale(marker)+age+factor(sex)+factor(ethn)+dbp+sbp,data=data)
-summary(fit)
+#Calculation of the rate of change#
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(data.table)
+Scales <- c('colname1','colname2','colname3','colname4')
+Brain_function_change_by <- list()
+Brain_function <- list()
+Brain_function_change <- unique(mydata1$eid)
+Brain_function_change <- data.frame(Brain_function_change)
+names(Brain_function_change) <- "eid"
+for (i in Scales){
+  mydata <- f_c[,c('eid',i,'years')]
+  mydata <- mydata %>% filter(!(is.na(mydata[[i]])))
+  FML <- as.formula(paste0(i,"~","years"))
+  Brain_function_change_by[[i]] <- by(mydata,as.factor(mydata$eid),
+                                 function(x) lm(FML,data = x))
+  Brain_function[[i]]<- sapply(Brain_function_change_by[[i]],coef)[2,]
+  Brain_function[[i]]<- data.frame(Brain_function[[i]])
+  names(Brain_function[[i]]) <- paste0(i,"_change")
+  Brain_function[[i]]<- transform(Brain_function[[i]],eid = as.integer(row.names(Brain_function[[i]])))
+  Brain_function_change <- merge(Brain_function_change,Brain_function[[i]],by.x = "eid",all = T)
+}
 
 #mediation analysis#
+lm1_main_model <- lm(Outcome~Exposure+cov1+cov2+cov3+cov4+cov5+cov6+cov7+cov8,data = mydata)
+        lm2_mediator_model <- lm(Mediator~Exposure+cov1+cov2+cov3+cov4+cov5+cov6+cov7+cov8,data = mydata)
+        lm3_model <- lm(Outcome~Mediator+cov1+cov2+cov3+cov4+cov5+cov6+cov7+cov8,data = mydata)
+        lm4_gather_model <- lm(Outcome~Exposure+Mediator+cov1+cov2+cov3+cov4+cov5+cov6+cov7+cov8,data = mydata)
+        result_mediate <- mediate(lm2_mediator_model,lm4_gather_model,sims = 5000,treat = Exposure,mediator = Mediator)
